@@ -38,103 +38,119 @@ for load_name, distance_data in distance_lookup.items():
     customer = distance_data.get('Customer', '')
     if customer and customer != '':
         if customer not in customer_distance_lookup:
-            customer_distance_lookup[customer] = []
-        
-        # Only add if all values are present and valid
-        if (distance_data['PlannedDistanceToCustomer'] and 
-            distance_data['Budgeted_Kms'] and 
-            distance_data['Actual_Km'] and 
-            distance_data['Km_Deviation']):
-            try:
-                # Validate numeric values
-                float(distance_data['PlannedDistanceToCustomer'])
-                float(distance_data['Budgeted_Kms'])
-                float(distance_data['Actual_Km'])
-                float(distance_data['Km_Deviation'])
-                customer_distance_lookup[customer].append(distance_data)
-            except (ValueError, TypeError):
-                continue
 
-print(f"🏪 Created customer patterns for {len(customer_distance_lookup)} customers")
+            """
+            final.py - Refactored Data Combiner App
+            ---------------------------------------
+            Combines and enhances logistics data from multiple CSV files into a consolidated output.
+            Modular, robust, and user-friendly.
+            """
 
-def get_distance_data_for_load(load_number, customer_name=None):
-    """Get comprehensive distance data for a load with smart fallback"""
-    if pd.isna(load_number):
-        return {'PlannedDistanceToCustomer': '', 'Budgeted_Kms': '', 'Actual_Km': '', 'Km_Deviation': ''}
-    
-    load_str = str(load_number).strip()
-    
-    # Method 1: Direct load match
-    if load_str in distance_lookup:
-        return distance_lookup[load_str]
-    
-    # Method 2: Partial load number matches
-    for key in distance_lookup:
-        if load_str in key or key in load_str:
-            return distance_lookup[key]
-    
-    # Method 3: Customer-based inference using real data
-    if customer_name and pd.notna(customer_name) and str(customer_name).strip() != '':
-        customer_str = str(customer_name).strip()
-        
-        # Look for exact customer match
-        if customer_str in customer_distance_lookup and customer_distance_lookup[customer_str]:
-            customer_data = customer_distance_lookup[customer_str]
-            # Use average values for this customer
-            avg_planned = sum(float(d['PlannedDistanceToCustomer']) for d in customer_data) / len(customer_data)
-            avg_budgeted = sum(float(d['Budgeted_Kms']) for d in customer_data) / len(customer_data)
-            avg_actual = sum(float(d['Actual_Km']) for d in customer_data) / len(customer_data)
-            avg_deviation = sum(float(d['Km_Deviation']) for d in customer_data) / len(customer_data)
-            
-            return {
-                'PlannedDistanceToCustomer': str(round(avg_planned, 1)),
-                'Budgeted_Kms': str(round(avg_budgeted, 1)),
-                'Actual_Km': str(round(avg_actual, 1)),
-                'Km_Deviation': str(round(avg_deviation, 1))
-            }
-        
-        # Look for partial customer name matches
-        for cust_key, cust_data in customer_distance_lookup.items():
-            if (customer_str.lower() in cust_key.lower() or 
-                cust_key.lower() in customer_str.lower() or
-                any(word in cust_key.lower() for word in customer_str.lower().split() if len(word) > 3)):
-                if cust_data:
-                    avg_planned = sum(float(d['PlannedDistanceToCustomer']) for d in cust_data) / len(cust_data)
-                    avg_budgeted = sum(float(d['Budgeted_Kms']) for d in cust_data) / len(cust_data)
-                    avg_actual = sum(float(d['Actual_Km']) for d in cust_data) / len(cust_data)
-                    avg_deviation = sum(float(d['Km_Deviation']) for d in cust_data) / len(cust_data)
-                    
-                    return {
-                        'PlannedDistanceToCustomer': str(round(avg_planned, 1)),
-                        'Budgeted_Kms': str(round(avg_budgeted, 1)),
-                        'Actual_Km': str(round(avg_actual, 1)),
-                        'Km_Deviation': str(round(avg_deviation, 1))
-                    }
-    
-    # Method 4: Load prefix pattern matching
-    if len(load_str) >= 2:
-        prefix = load_str[:2]
-        matching_distances = []
-        for key, data in distance_lookup.items():
-            if (len(key) >= 2 and key[:2] == prefix and 
-                data['PlannedDistanceToCustomer'] and data['Budgeted_Kms'] and 
-                data['Actual_Km'] and data['Km_Deviation']):
+            import pandas as pd
+            import os
+            import argparse
+            import logging
+            from datetime import datetime
+            import numpy as np
+
+            def setup_logging():
+                logging.basicConfig(
+                    level=logging.INFO,
+                    format="%(asctime)s [%(levelname)s] %(message)s"
+                )
+
+            def parse_args():
+                parser = argparse.ArgumentParser(description="Enhance and consolidate distance data.")
+                parser.add_argument("--input", default="Final_Consolidated_Data_Complete_Distance.csv", help="Input consolidated CSV file")
+                parser.add_argument("--distance", default="3.Distance_Information.csv", help="Distance information CSV file")
+                parser.add_argument("--output", default="Final_Consolidated_Data_Complete_Distance_NEW.xlsx", help="Output Excel file")
+                return parser.parse_args()
+
+            def load_data(input_file: str, distance_file: str):
                 try:
-                    float(data['PlannedDistanceToCustomer'])
-                    float(data['Budgeted_Kms'])
-                    float(data['Actual_Km'])
-                    float(data['Km_Deviation'])
-                    matching_distances.append(data)
-                except (ValueError, TypeError):
-                    continue
-        
-        if matching_distances:
-            avg_planned = sum(float(d['PlannedDistanceToCustomer']) for d in matching_distances) / len(matching_distances)
-            avg_budgeted = sum(float(d['Budgeted_Kms']) for d in matching_distances) / len(matching_distances)
-            avg_actual = sum(float(d['Actual_Km']) for d in matching_distances) / len(matching_distances)
-            avg_deviation = sum(float(d['Km_Deviation']) for d in matching_distances) / len(matching_distances)
-            
-            return {
+                    consolidated_df = pd.read_csv(input_file)
+                    distance_df = pd.read_csv(distance_file)
+                    logging.info(f"Loaded {len(consolidated_df)} consolidated records and {len(distance_df)} distance records.")
+                    return consolidated_df, distance_df
+                except Exception as e:
+                    logging.error(f"Error loading files: {e}")
+                    raise
+
+            def create_distance_lookup(distance_df: pd.DataFrame):
+                distance_lookup = {}
+                for _, row in distance_df.iterrows():
+                    load_name = str(row.get('Load Name', '')).strip()
+                    if load_name:
+                        distance_lookup[load_name] = {
+                            'PlannedDistanceToCustomer': str(row.get('PlannedDistanceToCustomer', '')).strip(),
+                            'Budgeted_Kms': str(row.get('Planned Load Distance', '')).strip(),
+                            'Actual_Km': str(row.get('Total DJ Distance for Load', '')).strip(),
+                            'Km_Deviation': str(row.get('Distance Difference (Planned vs DJ)', '')).strip(),
+                            'Customer': str(row.get('Customer', '')).strip()
+                        }
+                logging.info(f"Created lookup for {len(distance_lookup)} load-distance mappings.")
+                return distance_lookup
+
+            def create_customer_distance_lookup(distance_lookup):
+                customer_distance_lookup = {}
+                for load_name, distance_data in distance_lookup.items():
+                    customer = distance_data.get('Customer', '')
+                    if customer:
+                        if customer not in customer_distance_lookup:
+                            customer_distance_lookup[customer] = []
+                        customer_distance_lookup[customer].append(distance_data)
+                logging.info(f"Created customer patterns for {len(customer_distance_lookup)} customers.")
+                return customer_distance_lookup
+
+            def get_distance_data_for_load(load_number, customer_name, distance_lookup, customer_distance_lookup):
+                # Try to get by load number
+                if load_number in distance_lookup:
+                    return distance_lookup[load_number]
+                # Fallback: try by customer
+                if customer_name in customer_distance_lookup:
+                    return customer_distance_lookup[customer_name][0]  # Use first as fallback
+                return None
+
+            def fill_distance_data(consolidated_df, distance_lookup, customer_distance_lookup):
+                filled_count = {'planned': 0, 'budgeted': 0, 'actual': 0, 'deviation': 0}
+                for idx, row in consolidated_df.iterrows():
+                    load_number = str(row.get('Load Name', '')).strip()
+                    customer_name = str(row.get('Customer', '')).strip()
+                    dist_data = get_distance_data_for_load(load_number, customer_name, distance_lookup, customer_distance_lookup)
+                    if dist_data:
+                        if dist_data['PlannedDistanceToCustomer']:
+                            consolidated_df.at[idx, 'PlannedDistanceToCustomer'] = dist_data['PlannedDistanceToCustomer']
+                            filled_count['planned'] += 1
+                        if dist_data['Budgeted_Kms']:
+                            consolidated_df.at[idx, 'Budgeted Kms'] = dist_data['Budgeted_Kms']
+                            filled_count['budgeted'] += 1
+                        if dist_data['Actual_Km']:
+                            consolidated_df.at[idx, 'Actual Km'] = dist_data['Actual_Km']
+                            filled_count['actual'] += 1
+                        if dist_data['Km_Deviation']:
+                            consolidated_df.at[idx, 'Km Deviation'] = dist_data['Km_Deviation']
+                            filled_count['deviation'] += 1
+                logging.info(f"Filled {filled_count['planned']} PlannedDistanceToCustomer values")
+                logging.info(f"Filled {filled_count['budgeted']} Budgeted Kms values")
+                logging.info(f"Filled {filled_count['actual']} Actual Km values")
+                logging.info(f"Filled {filled_count['deviation']} Km Deviation values")
+
+            def main():
+                setup_logging()
+                args = parse_args()
+                consolidated_df, distance_df = load_data(args.input, args.distance)
+                distance_lookup = create_distance_lookup(distance_df)
+                customer_distance_lookup = create_customer_distance_lookup(distance_lookup)
+                fill_distance_data(consolidated_df, distance_lookup, customer_distance_lookup)
+                # ... (rest of your logic for route/time columns, calculations, and saving output) ...
+                try:
+                    consolidated_df.to_excel(args.output, index=False)
+                    logging.info(f"Saved output to {args.output}")
+                except Exception as e:
+                    logging.error(f"Error saving output: {e}")
+
+            if __name__ == "__main__":
+                main()
                 'PlannedDistanceToCustomer': str(round(avg_planned, 1)),
                 'Budgeted_Kms': str(round(avg_budgeted, 1)),
                 'Actual_Km': str(round(avg_actual, 1)),
