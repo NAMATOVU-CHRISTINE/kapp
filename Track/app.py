@@ -1,4 +1,5 @@
-from flask import Flask, render_template_string, send_file
+
+from flask import Flask, render_template, render_template_string, send_file
 import subprocess
 import os
 
@@ -6,17 +7,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-    return render_template_string('''
-        <h1>Track Data Combiner App</h1>
-        <form action="/run" method="post">
-            <button type="submit">Run Data Processing</button>
-        </form>
-        <p>After running, download the output files below:</p>
-        <ul>
-            <li><a href="/download/excel">Final_Consolidated_Data_Complete_Distance_NEW.xlsx</a></li>
-            <li><a href="/download/csv">Final_Consolidated_Data_Complete_Distance.csv</a></li>
-        </ul>
-    ''')
+    return render_template('index.html')
 
 @app.route('/run', methods=['POST'])
 def run_script():
