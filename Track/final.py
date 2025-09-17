@@ -267,9 +267,11 @@ columns_to_round = [
     'Days In Route Deviation',
     'Total Hour Route'
 ]
-for col in columns_to_round:
-    if col in excel_df.columns:
-        excel_df[col] = excel_df[col].round(1)
+
+if not excel_df.empty:
+    for col in columns_to_round:
+        if col in excel_df.columns:
+            excel_df[col] = pd.to_numeric(excel_df[col], errors='coerce').round(1)
 try:
     excel_df.to_excel(output_filename, index=False)
     print(f"✅ Excel file saved: {output_filename}")
