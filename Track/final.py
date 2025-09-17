@@ -30,17 +30,25 @@ for _, row in distance_df.iterrows():
 
 print(f"✅ Created lookup for {len(distance_lookup)} load-distance mappings")
 
+
 # Create customer-based lookup for fallback
 print("🏢 Creating customer-based distance patterns...")
 customer_distance_lookup = {}
-
 for load_name, distance_data in distance_lookup.items():
     customer = distance_data.get('Customer', '')
     if customer and customer != '':
         if customer not in customer_distance_lookup:
             customer_distance_lookup[customer] = []
         customer_distance_lookup[customer].append(distance_data)
-    
+
+def get_distance_data_for_load(load_number, customer_name):
+    # Try to get by load number
+    if load_number in distance_lookup:
+        return distance_lookup[load_number]
+    # Fallback: try by customer
+    if customer_name in customer_distance_lookup:
+        return customer_distance_lookup[customer_name][0]  # Use first as fallback
+
     # Method 5: Use median values from all data as final fallback
     all_distances = []
     for data in distance_lookup.values():
@@ -54,26 +62,22 @@ for load_name, distance_data in distance_lookup.items():
                 all_distances.append(data)
             except (ValueError, TypeError):
                 continue
-    
     if all_distances:
         # Use median values for more realistic fallback
         planned_values = sorted([float(d['PlannedDistanceToCustomer']) for d in all_distances])
         budgeted_values = sorted([float(d['Budgeted_Kms']) for d in all_distances])
         actual_values = sorted([float(d['Actual_Km']) for d in all_distances])
         deviation_values = sorted([float(d['Km_Deviation']) for d in all_distances])
-        
         median_planned = planned_values[len(planned_values)//2]
         median_budgeted = budgeted_values[len(budgeted_values)//2]
         median_actual = actual_values[len(actual_values)//2]
         median_deviation = deviation_values[len(deviation_values)//2]
-        
         return {
             'PlannedDistanceToCustomer': str(round(median_planned, 1)),
             'Budgeted_Kms': str(round(median_budgeted, 1)),
             'Actual_Km': str(round(median_actual, 1)),
             'Km_Deviation': str(round(median_deviation, 1))
         }
-    
     # Final fallback - return empty (no fake data)
     return {'PlannedDistanceToCustomer': '', 'Budgeted_Kms': '', 'Actual_Km': '', 'Km_Deviation': ''}
 
