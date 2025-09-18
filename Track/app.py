@@ -1,12 +1,13 @@
-@app.route('/upload')
-def upload_page():
-    return render_template('base_upload.html')
 
 from flask import Flask, render_template, render_template_string, send_file
 import subprocess
 import os
 
 app = Flask(__name__)
+
+@app.route('/upload')
+def upload_page():
+    return render_template('base_upload.html')
 
 @app.route('/')
 def index():
