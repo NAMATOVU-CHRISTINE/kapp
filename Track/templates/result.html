@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+<main class="animate-fade-in">
+    <div class="card" style="text-align: center; margin-bottom: 2rem; max-width: 600px; margin: 0 auto;">
+        <!-- Clean success icon without text emoji -->
+        <h2 style="margin-bottom: 1rem; color: var(--success); font-size: 2rem;">Processing Complete</h2>
+        <p style="color: var(--text-muted); margin-bottom: 2.5rem; font-size: 1.1rem;">
+            Your data has been consolidated successfully.
+        </p>
+
+        <div class="btn-group" style="justify-content: center; gap: 1.5rem; margin-bottom: 2rem; flex-wrap: wrap;">
+            <a href="/download/excel" class="btn btn-primary" style="padding: 1rem 2rem; min-width: 200px;">
+                Download Excel Report
+            </a>
+            <a href="/download/csv" class="btn btn-outline" style="padding: 1rem 2rem; min-width: 200px;">
+                Download CSV Data
+            </a>
+        </div>
+
+        <div style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 1.5rem;">
+            <a href="/" style="color: var(--primary); text-decoration: none; font-weight: 500; font-size: 0.95rem;">
+                ← Upload New Files
+            </a>
+        </div>
+    </div>
+</main>
+{% endblock %}

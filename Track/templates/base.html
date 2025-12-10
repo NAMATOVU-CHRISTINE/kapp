@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LogiFusion</title>
+    <!-- Use local css -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Favicon (Emoji as placeholder) -->
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📦</text></svg>">
+</head>
+
+<body>
+    <div class="app-container">
+        <header class="animate-fade-in">
+            <div class="logo-area">LF</div>
+            <h1>LogiFusion</h1>
+            <p class="subtitle">Unified Logistics Intelligence.</p>
+        </header>
+
+        {% block content %}
+        <!-- Content goes here -->
+        {% endblock %}
+    </div>
+
+    <footer>
+        <p>&copy; 2025 Logistics AI Assistant. Built for efficient workflows.</p>
+    </footer>
+</body>
+
+</html>

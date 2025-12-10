@@ -1,13 +1,19 @@
-from flask import Flask, render_template, render_template_string, send_file
+from flask import Flask, render_template, request, send_file
 import subprocess
 import os
 import sys
 
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = os.getcwd()
 
-@app.route('/upload')
-def upload_page():
-    return render_template('base_upload.html')
+# Map form field names to the required filenames
+FILE_MAPPING = {
+    'file_depot': '1.Depot_Departures.csv',
+    'file_customer': '2.Customer_Timestamps.csv',
+    'file_distance': '3.Distance_Information.csv',
+    'file_timestamps': '4.Timestamps_and_Duration.csv',
+    'file_route': '5.Time_in_Route_Information.csv'
+}
 
 @app.route('/')
 def index():
@@ -15,23 +21,36 @@ def index():
 
 @app.route('/run', methods=['POST'])
 def run_script():
-    # Use the same python executable that is running this script
+    # 1. Save uploaded files
+    uploaded_count = 0
+    for field_name, target_name in FILE_MAPPING.items():
+        if field_name in request.files:
+            file = request.files[field_name]
+            if file and file.filename != '':
+                save_path = os.path.join(app.config['UPLOAD_FOLDER'], target_name)
+                file.save(save_path)
+                uploaded_count += 1
+    
+    # 2. Run the combiner script
     python_executable = sys.executable
     
     # Run the data processing script
-    result = subprocess.run([
-        python_executable,
-        'data_combiner.py'
-    ], capture_output=True, text=True)
-    
-    output = result.stdout + '\n' + result.stderr
-    return render_template_string('''
-        <h2>Script Output</h2>
-        <pre>{{output}}</pre>
-        <div style="margin-top: 20px;">
-            <a href="/" style="padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">Back to Home</a>
-        </div>
-    ''', output=output)
+    try:
+        result = subprocess.run([
+            python_executable,
+            'data_combiner.py'
+        ], capture_output=True, text=True, check=False)
+        
+        output = result.stdout + '\n' + result.stderr
+        
+        # Add a note about uploads
+        upload_note = f"\n[System] Processed {uploaded_count} new uploaded files.\n"
+        output = upload_note + output
+        
+    except Exception as e:
+        output = f"Critical Error running script: {str(e)}"
+
+    return render_template('result.html', output=output)
 
 @app.route('/download/excel')
 def download_excel():
