@@ -5,16 +5,15 @@ import statistics
 from datetime import datetime
 
 # --- Configuration & Constants ---
-INPUT_FILES = {
-    "Depot": "1.Depot_Departures.csv",
-    "Customer": "2.Customer_Timestamps.csv",
-    "Distance": "3.Distance_Information.csv",
-    "Timestamps": "4.Timestamps_and_Duration.csv",
-    "TimeRoute": "5.Time_in_Route_Information.csv"
-}
-
-OUTPUT_EXCEL = "Final_Consolidated_Data_Complete.xlsx"
-OUTPUT_CSV = "Final_Consolidated_Data_Complete.csv"
+# Wrappers to allow dynamic paths
+def get_file_paths(base_dir='.'):
+    return {
+        "Depot": os.path.join(base_dir, "1.Depot_Departures.csv"),
+        "Customer": os.path.join(base_dir, "2.Customer_Timestamps.csv"),
+        "Distance": os.path.join(base_dir, "3.Distance_Information.csv"),
+        "Timestamps": os.path.join(base_dir, "4.Timestamps_and_Duration.csv"),
+        "TimeRoute": os.path.join(base_dir, "5.Time_in_Route_Information.csv")
+    }
 
 COLUMNS = [
     "Create Date", "Month Name", "Transporter", "Load Number", "Mode Of Capture", "Driver Name",
@@ -51,7 +50,7 @@ def extract_month_name(date_str):
 
 def load_csv(file_path, sep=None):
     if not os.path.exists(file_path):
-        print(f"⚠️  File not found: {file_path}")
+        # Silent fail or log?
         return None
     try:
         # Try default comma
@@ -71,12 +70,12 @@ def load_csv(file_path, sep=None):
 
 # --- Lookup Builders ---
 
-def build_lookups():
+def build_lookups(input_files):
     print("🔄 Building data lookups for cross-referencing...")
     
     # 1. Customer Lookup
     customer_lookup = {}
-    df_cust = load_csv(INPUT_FILES["Customer"])
+    df_cust = load_csv(input_files["Customer"])
     if df_cust is not None:
         for _, row in df_cust.iterrows():
             if pd.notna(row.get('load_name')) and pd.notna(row.get('customer_name')):
@@ -84,7 +83,7 @@ def build_lookups():
     
     # 2. Distance Lookup
     distance_lookup = {}
-    df_dist = load_csv(INPUT_FILES["Distance"])
+    df_dist = load_csv(input_files["Distance"])
     if df_dist is not None:
         for _, row in df_dist.iterrows():
             load_name = str(row.get('Load Name', '')).strip()
@@ -130,14 +129,14 @@ def build_lookups():
                 transporter_lookup[load] = transporter
 
     # Process all files for driver/vehicle info
-    process_driver_source(load_csv(INPUT_FILES["Depot"]), "Load Name", "Driver Name", "Vehicle Reg", "Hired/Own")
-    process_driver_source(load_csv(INPUT_FILES["Customer"]), "load_name", "DriverName", None)
-    process_driver_source(load_csv(INPUT_FILES["Distance"]), "Load Name", "Driver Name", "Vehicle Reg", "Hired/Own")
-    process_driver_source(load_csv(INPUT_FILES["TimeRoute"]), "Load", "Driver", None)
+    process_driver_source(load_csv(input_files["Depot"]), "Load Name", "Driver Name", "Vehicle Reg", "Hired/Own")
+    process_driver_source(load_csv(input_files["Customer"]), "load_name", "DriverName", None)
+    process_driver_source(load_csv(input_files["Distance"]), "Load Name", "Driver Name", "Vehicle Reg", "Hired/Own")
+    process_driver_source(load_csv(input_files["TimeRoute"]), "Load", "Driver", None)
 
     # 4. Clockin Lookup
     clockin_lookup = {}
-    df_time = load_csv(INPUT_FILES["Timestamps"])
+    df_time = load_csv(input_files["Timestamps"])
     if df_time is not None:
         for _, row in df_time.iterrows():
             load = str(row.get('load_name', '')).strip()
@@ -401,41 +400,37 @@ def perform_final_calcs(df):
 
 # --- Main Execution ---
 
-def main():
-    print("🚀 Starting Data Combiner App...")
+def process_data_func(base_dir='.'):
+    print(f"🚀 Starting Data Combiner App in {base_dir}...")
+    
+    input_files = get_file_paths(base_dir)
     
     # 1. Build Lookups
-    lookups = build_lookups()
+    lookups = build_lookups(input_files)
     
     # 2. Process Files
     dfs = []
-    if os.path.exists(INPUT_FILES["Depot"]): dfs.append(process_file(INPUT_FILES["Depot"], map_depot, lookups))
-    if os.path.exists(INPUT_FILES["Customer"]): dfs.append(process_file(INPUT_FILES["Customer"], map_customer, lookups))
-    if os.path.exists(INPUT_FILES["Distance"]): dfs.append(process_file(INPUT_FILES["Distance"], map_distance, lookups))
-    if os.path.exists(INPUT_FILES["Timestamps"]): dfs.append(process_file(INPUT_FILES["Timestamps"], map_timestamps, lookups))
-    if os.path.exists(INPUT_FILES["TimeRoute"]): dfs.append(process_file(INPUT_FILES["TimeRoute"], map_timeroute, lookups))
+    if os.path.exists(input_files["Depot"]): dfs.append(process_file(input_files["Depot"], map_depot, lookups))
+    if os.path.exists(input_files["Customer"]): dfs.append(process_file(input_files["Customer"], map_customer, lookups))
+    if os.path.exists(input_files["Distance"]): dfs.append(process_file(input_files["Distance"], map_distance, lookups))
+    if os.path.exists(input_files["Timestamps"]): dfs.append(process_file(input_files["Timestamps"], map_timestamps, lookups))
+    if os.path.exists(input_files["TimeRoute"]): dfs.append(process_file(input_files["TimeRoute"], map_timeroute, lookups))
     
     if not dfs:
-        print("❌ No data processed! Please ensure CSV files are present.")
-        return
+        return "❌ No data processed! Please ensure CSV files are present."
 
     # 3. Concatenate
     print("🔗 Combining dataframes...")
     final_df = pd.concat(dfs, ignore_index=True)
     
     # 4. Consolidate by Load Number
-    # We group by Load Number and take the first non-null value for each field
     print("🧹 Consolidating duplicate load numbers...")
     
-    # Identify non-empty values to prioritize
     def first_valid(series):
         v = series.dropna()
         v = v[v != ""]
         return v.iloc[0] if not v.empty else ""
 
-    # Group by Load Number
-    # Note: simple groupby might be slow if dataset is huge, but here it's likely manageable.
-    # We must ensure 'Load Number' is present and clean
     final_df['Load Number'] = final_df['Load Number'].astype(str).str.strip()
     final_df = final_df[final_df['Load Number'] != ""]
     final_df = final_df[final_df['Load Number'] != "nan"]
@@ -448,7 +443,6 @@ def main():
     final_df = final_df.apply(lambda row: fill_vehicle_reg(row, lookups), axis=1)
     final_df = final_df.apply(lambda row: fill_clockin_data(row, lookups), axis=1)
     
-    # Fill Transporters one last time from lookup if missing
     for idx, row in final_df.iterrows():
         if not row['Transporter']:
             final_df.at[idx, 'Transporter'] = lookups['transporter'].get(row['Load Number'], "")
@@ -468,9 +462,12 @@ def main():
     
     # 8. Save
     print(f"💾 Saving {len(final_df)} records to Excel/CSV...")
-    final_df.to_excel(OUTPUT_EXCEL, index=False)
-    final_df.to_csv(OUTPUT_CSV, index=False)
-    print("✅ Done! Files saved successfully.")
+    output_excel = os.path.join(base_dir, "Final_Consolidated_Data_Complete.xlsx")
+    output_csv = os.path.join(base_dir, "Final_Consolidated_Data_Complete.csv")
+    
+    final_df.to_excel(output_excel, index=False)
+    final_df.to_csv(output_csv, index=False)
+    return "✅ Done! Files saved successfully."
 
 if __name__ == "__main__":
-    main()
+    process_data_func()

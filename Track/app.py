@@ -1,10 +1,19 @@
 from flask import Flask, render_template, request, send_file
-import subprocess
 import os
 import sys
+# Import the processing function directly
+from data_combiner import process_data_func
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = os.getcwd()
+
+# Use /tmp for Vercel (and local) write permissions
+# On local, you might want os.getcwd(), but /tmp is safer for stateless logic
+# unless the user wants persistence. Let's use /tmp for compatibility.
+app.config['UPLOAD_FOLDER'] = "/tmp"
+
+# Ensure the upload folder exists
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
 
 # Map form field names to the required filenames
 FILE_MAPPING = {
@@ -23,45 +32,51 @@ def index():
 def run_script():
     # 1. Save uploaded files
     uploaded_count = 0
-    for field_name, target_name in FILE_MAPPING.items():
-        if field_name in request.files:
-            file = request.files[field_name]
-            if file and file.filename != '':
-                save_path = os.path.join(app.config['UPLOAD_FOLDER'], target_name)
-                file.save(save_path)
-                uploaded_count += 1
-    
-    # 2. Run the combiner script
-    python_executable = sys.executable
-    
-    # Run the data processing script
     try:
-        result = subprocess.run([
-            python_executable,
-            'data_combiner.py'
-        ], capture_output=True, text=True, check=False)
-        
-        output = result.stdout + '\n' + result.stderr
-        
-        # Add a note about uploads
-        upload_note = f"\n[System] Processed {uploaded_count} new uploaded files.\n"
-        output = upload_note + output
-        
-    except Exception as e:
-        output = f"Critical Error running script: {str(e)}"
+        # Ensure directory exists again just in case
+        if not os.path.exists(app.config['UPLOAD_FOLDER']):
+            os.makedirs(app.config['UPLOAD_FOLDER'])
 
-    return render_template('result.html', output=output)
+        for field_name, target_name in FILE_MAPPING.items():
+            if field_name in request.files:
+                file = request.files[field_name]
+                if file and file.filename != '':
+                    save_path = os.path.join(app.config['UPLOAD_FOLDER'], target_name)
+                    file.save(save_path)
+                    uploaded_count += 1
+        
+        # 2. Run the combiner logic directly
+        try:
+            # Capture output by intercepting stdout? Or just trust the return message.
+            # The refactored function returns a status string.
+            # If we really want stdout, we'd have to redirect it, but return message is safer.
+            result_msg = process_data_func(app.config['UPLOAD_FOLDER'])
+            output = result_msg
+            
+            # Add a note about uploads
+            upload_note = f"\n[System] Processed {uploaded_count} news uploaded files.\n"
+            output = upload_note + output
+            
+        except Exception as e:
+            output = f"Critical Error running script: {str(e)}"
+            import traceback
+            traceback.print_exc()
+
+        return render_template('result.html', output=output)
+
+    except Exception as e:
+        return f"Error handling request: {e}", 500
 
 @app.route('/download/excel')
 def download_excel():
-    path = 'Final_Consolidated_Data_Complete.xlsx'
+    path = os.path.join(app.config['UPLOAD_FOLDER'], 'Final_Consolidated_Data_Complete.xlsx')
     if os.path.exists(path):
         return send_file(path, as_attachment=True)
     return "File not found. Please run the script first.", 404
 
 @app.route('/download/csv')
 def download_csv():
-    path = 'Final_Consolidated_Data_Complete.csv'
+    path = os.path.join(app.config['UPLOAD_FOLDER'], 'Final_Consolidated_Data_Complete.csv')
     if os.path.exists(path):
         return send_file(path, as_attachment=True)
     return "File not found. Please run the script first.", 404
